@@ -1,8 +1,15 @@
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import HomePage from './pages/HomePage'
+import TripMapPage from './pages/TripMapPage'
+
 function App() {
   return (
-    <div>
-      <h1>Charted</h1>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/trips/:id" element={<TripMapPage />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 
