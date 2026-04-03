@@ -10,4 +10,6 @@ export interface Trip {
   startDate: string
   endDate: string
   stops: number
+  /** Index of the destination the traveller is currently at (0 = not started) */
+  currentStop: number
 }

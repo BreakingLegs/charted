@@ -43,7 +43,7 @@ body {
 /* Animated dashed route line */
 @keyframes route-dash {
   from {
-    stroke-dashoffset: 14;
+    stroke-dashoffset: 24;
   }
   to {
     stroke-dashoffset: 0;
@@ -51,5 +51,5 @@ body {
 }
 
 .animated-route {
-  animation: route-dash 0.6s linear infinite;
+  animation: route-dash 0.8s linear infinite;
 }

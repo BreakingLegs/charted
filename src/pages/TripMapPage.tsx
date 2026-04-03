@@ -4,6 +4,39 @@ import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet
 import L from 'leaflet'
 import { mockTrips } from '../data/mockTrips'
 
+type LegStatus = 'completed' | 'current' | 'future'
+
+const LEG_PATH_OPTIONS: Record<LegStatus, L.PathOptions> = {
+  completed: {
+    color: '#dc2626',
+    weight: 4,
+    opacity: 1,
+    lineCap: 'round',
+    lineJoin: 'round',
+  },
+  current: {
+    color: '#dc2626',
+    weight: 4,
+    dashArray: '10 14',
+    lineCap: 'round',
+    lineJoin: 'round',
+    className: 'animated-route',
+  },
+  future: {
+    color: '#dc2626',
+    weight: 4,
+    opacity: 0.3,
+    lineCap: 'round',
+    lineJoin: 'round',
+  },
+}
+
+function getLegStatus(legIndex: number, currentStop: number): LegStatus {
+  if (legIndex < currentStop) return 'completed'
+  if (legIndex === currentStop) return 'current'
+  return 'future'
+}
+
 function FitBounds({ positions }: { positions: [number, number][] }) {
   const map = useMap()
   useEffect(() => {
@@ -54,27 +87,26 @@ export default function TripMapPage() {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         />
-        <Polyline
-          positions={positions}
-          pathOptions={{
-            color: '#dc2626',
-            weight: 2.5,
-            dashArray: '8 6',
-            lineCap: 'round',
-            lineJoin: 'round',
-            className: 'animated-route',
-          }}
-        />
+
+        {/* One Polyline per leg so each can have independent styling */}
+        {trip.destinations.slice(0, -1).map((_, i) => (
+          <Polyline
+            key={i}
+            positions={[trip.destinations[i].coords, trip.destinations[i + 1].coords]}
+            pathOptions={LEG_PATH_OPTIONS[getLegStatus(i, trip.currentStop)]}
+          />
+        ))}
+
         {trip.destinations.map((dest, i) => (
           <Marker key={dest.name} position={dest.coords} icon={createStopIcon(i)} />
         ))}
         <FitBounds positions={positions} />
       </MapContainer>
 
-      {/* Back button */}
+      {/* Back button — offset right of Leaflet's zoom controls (~36px wide at left:10px) */}
       <button
         onClick={() => void navigate('/')}
-        className="absolute left-5 top-5 z-[1000] flex cursor-pointer items-center gap-1.5 rounded-sm border border-[var(--color-border)] bg-[var(--color-paper-card)] px-3 py-2 text-sm font-medium text-[var(--color-ink)] shadow-sm transition-opacity duration-150 hover:opacity-75"
+        className="absolute left-14 top-[10px] z-[1000] flex cursor-pointer items-center gap-1.5 rounded-sm border border-[var(--color-border)] bg-[var(--color-paper-card)] px-3 py-2 text-sm font-medium text-[var(--color-ink)] shadow-sm transition-opacity duration-150 hover:opacity-75"
       >
         <BackArrowIcon />
         Back

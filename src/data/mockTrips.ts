@@ -13,6 +13,7 @@ export const mockTrips: Trip[] = [
     startDate: 'Jun 12, 2025',
     endDate: 'Jun 24, 2025',
     stops: 4,
+    currentStop: 1, // Zurich visited, currently in Interlaken
   },
   {
     id: '2',
@@ -26,6 +27,7 @@ export const mockTrips: Trip[] = [
     startDate: 'Sep 5, 2025',
     endDate: 'Sep 18, 2025',
     stops: 4,
+    currentStop: 2, // Barcelona + Valencia visited, currently in Alicante
   },
   {
     id: '3',
@@ -39,5 +41,6 @@ export const mockTrips: Trip[] = [
     startDate: 'Oct 2, 2025',
     endDate: 'Oct 14, 2025',
     stops: 4,
+    currentStop: 1, // Ljubljana visited, currently in Zagreb
   },
 ]
