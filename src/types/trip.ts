@@ -1,6 +1,11 @@
+export type TransportType = 'plane' | 'car' | 'train' | 'boat' | 'bus'
+
 export interface Destination {
   name: string
-  coords: [number, number] // [lat, lng]
+  lat: number
+  lng: number
+  visited: boolean
+  transportToNext?: TransportType
 }
 
 export interface Trip {
@@ -9,7 +14,5 @@ export interface Trip {
   destinations: Destination[]
   startDate: string
   endDate: string
-  stops: number
-  /** Index of the destination the traveller is currently at (0 = not started) */
-  currentStop: number
+  createdAt: string
 }

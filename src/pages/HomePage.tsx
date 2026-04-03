@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom'
 import TripCard from '../components/TripCard'
-import { mockTrips } from '../data/mockTrips'
+import { useTripStorage } from '../hooks/useTripStorage'
 
 export default function HomePage() {
   const navigate = useNavigate()
+  const { trips } = useTripStorage()
 
   return (
     <div className="min-h-screen bg-[var(--color-paper)]">
@@ -33,7 +34,7 @@ export default function HomePage() {
           </h2>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {mockTrips.map((trip) => (
+            {trips.map((trip) => (
               <TripCard key={trip.id} trip={trip} />
             ))}
           </div>

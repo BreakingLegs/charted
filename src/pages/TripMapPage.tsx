@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, useMap } from 'react-leaflet'
 import L from 'leaflet'
-import { mockTrips } from '../data/mockTrips'
+import { useTripStorage } from '../hooks/useTripStorage'
 
 type LegStatus = 'completed' | 'current' | 'future'
 
@@ -31,9 +31,9 @@ const LEG_PATH_OPTIONS: Record<LegStatus, L.PathOptions> = {
   },
 }
 
-function getLegStatus(legIndex: number, currentStop: number): LegStatus {
-  if (legIndex < currentStop) return 'completed'
-  if (legIndex === currentStop) return 'current'
+function getLegStatus(legIndex: number, lastVisitedIndex: number): LegStatus {
+  if (legIndex < lastVisitedIndex) return 'completed'
+  if (legIndex === lastVisitedIndex) return 'current'
   return 'future'
 }
 
@@ -61,8 +61,9 @@ function createStopIcon(index: number) {
 export default function TripMapPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { trips } = useTripStorage()
 
-  const trip = mockTrips.find((t) => t.id === id)
+  const trip = trips.find((t) => t.id === id)
 
   if (!trip) {
     return (
@@ -72,7 +73,16 @@ export default function TripMapPage() {
     )
   }
 
-  const positions: [number, number][] = trip.destinations.map((d) => d.coords)
+  // Index of the last destination the traveller has visited; -1 if none
+  const lastVisitedIndex = trip.destinations.reduce<number>(
+    (last, dest, i) => (dest.visited ? i : last),
+    -1,
+  )
+
+  const positions: [number, number][] = trip.destinations.map((d): [number, number] => [
+    d.lat,
+    d.lng,
+  ])
 
   return (
     <div className="relative h-screen w-screen overflow-hidden">
@@ -92,13 +102,16 @@ export default function TripMapPage() {
         {trip.destinations.slice(0, -1).map((_, i) => (
           <Polyline
             key={i}
-            positions={[trip.destinations[i].coords, trip.destinations[i + 1].coords]}
-            pathOptions={LEG_PATH_OPTIONS[getLegStatus(i, trip.currentStop)]}
+            positions={[
+              [trip.destinations[i].lat, trip.destinations[i].lng] as [number, number],
+              [trip.destinations[i + 1].lat, trip.destinations[i + 1].lng] as [number, number],
+            ]}
+            pathOptions={LEG_PATH_OPTIONS[getLegStatus(i, lastVisitedIndex)]}
           />
         ))}
 
         {trip.destinations.map((dest, i) => (
-          <Marker key={dest.name} position={dest.coords} icon={createStopIcon(i)} />
+          <Marker key={dest.name} position={[dest.lat, dest.lng]} icon={createStopIcon(i)} />
         ))}
         <FitBounds positions={positions} />
       </MapContainer>

@@ -16,7 +16,7 @@ export default function TripCard({ trip }: TripCardProps) {
           {trip.name}
         </h2>
         <span className="shrink-0 rounded-full border border-[var(--color-border)] px-2.5 py-0.5 text-xs font-medium text-[var(--color-ink-muted)]">
-          {trip.stops} stops
+          {trip.destinations.length} stops
         </span>
       </div>
 
