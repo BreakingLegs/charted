@@ -32,8 +32,8 @@ src/
 
 ## Scripts
 
-| Command         | Description                    |
-|-----------------|--------------------------------|
-| `npm run dev`   | Start development server       |
-| `npm run build` | Type-check and build for prod  |
-| `npm run preview` | Preview production build     |
+| Command           | Description                   |
+| ----------------- | ----------------------------- |
+| `npm run dev`     | Start development server      |
+| `npm run build`   | Type-check and build for prod |
+| `npm run preview` | Preview production build      |
