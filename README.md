@@ -1,6 +1,7 @@
 # Charted
 
 A travel route planner app built with React, TypeScript, and Leaflet.
+Charted. is a vintage-aesthetic travel route planning app where you can create and visualize trips on an interactive map. Built as a personal side project to explore React, TypeScript, and map-based UIs.
 
 ## Tech Stack
 
