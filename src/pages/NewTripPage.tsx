@@ -1,19 +1,23 @@
 import { useState } from 'react'
 import type { SubmitEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import TextInput from '../components/ui/TextInput'
 import DatePicker from '../components/ui/DatePicker'
 import Select from '../components/ui/Select'
 import Button from '../components/ui/Button'
 import { useTripStorage } from '../hooks/useTripStorage'
 import { geocodePlace, GeocodeError } from '../utils/geocoding'
-import type { Destination, TransportType } from '../types/trip'
+import type { Destination, TransportType, Trip } from '../types/trip'
 
 interface DestEntry {
   key: number
   name: string
+  draftName: string
   lat: number
   lng: number
+  visited: boolean
+  isSearching: boolean
+  searchError?: string
   transport: TransportType | ''
 }
 
@@ -38,15 +42,48 @@ function formatDisplayDate(isoDate: string): string {
   })
 }
 
+// Inverse of formatDisplayDate, for pre-filling <input type="date"> when editing.
+function parseDisplayDate(display: string): string {
+  if (!display) return ''
+  const parsed = new Date(display)
+  if (Number.isNaN(parsed.getTime())) return ''
+  const yyyy = String(parsed.getFullYear())
+  const mm = String(parsed.getMonth() + 1).padStart(2, '0')
+  const dd = String(parsed.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+// A destination's "Via" transport is stored as transportToNext on the *previous*
+// destination, so it shifts by one when converting back into editable entries.
+function tripToDestEntries(trip: Trip): DestEntry[] {
+  return trip.destinations.map((d, i) => ({
+    key: i,
+    name: d.name,
+    draftName: d.name,
+    lat: d.lat,
+    lng: d.lng,
+    visited: d.visited,
+    isSearching: false,
+    transport: i > 0 ? (trip.destinations[i - 1].transportToNext ?? '') : '',
+  }))
+}
+
 export default function NewTripPage() {
   const navigate = useNavigate()
-  const { saveTrip } = useTripStorage()
+  const { id } = useParams<{ id: string }>()
+  const { trips, saveTrip, updateTrip } = useTripStorage()
 
-  const [tripName, setTripName] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [destinations, setDestinations] = useState<DestEntry[]>([])
-  const [keyCounter, setKeyCounter] = useState(0)
+  const existingTrip = id ? trips.find((t) => t.id === id) : undefined
+
+  const [tripName, setTripName] = useState(existingTrip?.name ?? '')
+  const [startDate, setStartDate] = useState(
+    existingTrip ? parseDisplayDate(existingTrip.startDate) : '',
+  )
+  const [endDate, setEndDate] = useState(existingTrip ? parseDisplayDate(existingTrip.endDate) : '')
+  const [destinations, setDestinations] = useState<DestEntry[]>(
+    existingTrip ? tripToDestEntries(existingTrip) : [],
+  )
+  const [keyCounter, setKeyCounter] = useState(existingTrip?.destinations.length ?? 0)
   const [errors, setErrors] = useState<FormErrors>({})
 
   const [query, setQuery] = useState('')
@@ -60,6 +97,10 @@ export default function NewTripPage() {
 
   function updateTransport(key: number, transport: TransportType | '') {
     setDestinations((prev) => prev.map((d) => (d.key === key ? { ...d, transport } : d)))
+  }
+
+  function updateDraftName(key: number, draftName: string) {
+    setDestinations((prev) => prev.map((d) => (d.key === key ? { ...d, draftName } : d)))
   }
 
   async function handleAddDestination(e: SubmitEvent<HTMLFormElement>) {
@@ -82,8 +123,11 @@ export default function NewTripPage() {
         {
           key: keyCounter,
           name: result.displayName,
+          draftName: result.displayName,
           lat: result.lat,
           lng: result.lng,
+          visited: false,
+          isSearching: false,
           transport: pendingTransport,
         },
       ])
@@ -94,6 +138,53 @@ export default function NewTripPage() {
       setSearchError(err instanceof GeocodeError ? err.message : 'Something went wrong. Try again.')
     } finally {
       setIsSearching(false)
+    }
+  }
+
+  // Re-geocodes an existing destination only if its name actually changed.
+  async function handleUpdateDestinationName(e: SubmitEvent<HTMLFormElement>, key: number) {
+    e.preventDefault()
+
+    const current = destinations.find((d) => d.key === key)
+    if (!current || current.isSearching) return
+
+    const trimmed = current.draftName.trim()
+    if (trimmed === current.name) return
+
+    setDestinations((prev) =>
+      prev.map((d) => (d.key === key ? { ...d, isSearching: true, searchError: undefined } : d)),
+    )
+
+    try {
+      const result = await geocodePlace(trimmed)
+      setDestinations((prev) =>
+        prev.map((d) =>
+          d.key === key
+            ? {
+                ...d,
+                name: result.displayName,
+                draftName: result.displayName,
+                lat: result.lat,
+                lng: result.lng,
+                visited: false,
+                isSearching: false,
+              }
+            : d,
+        ),
+      )
+    } catch (err) {
+      setDestinations((prev) =>
+        prev.map((d) =>
+          d.key === key
+            ? {
+                ...d,
+                isSearching: false,
+                searchError:
+                  err instanceof GeocodeError ? err.message : 'Something went wrong. Try again.',
+              }
+            : d,
+        ),
+      )
     }
   }
 
@@ -116,24 +207,41 @@ export default function NewTripPage() {
         name: d.name,
         lat: d.lat,
         lng: d.lng,
-        visited: false,
+        visited: d.visited,
         ...(nextTransport ? { transportToNext: nextTransport } : {}),
       }
     })
 
-    saveTrip({
-      id: crypto.randomUUID(),
+    const fields = {
       name: tripName.trim(),
       destinations: tripDestinations,
       startDate: startDate ? formatDisplayDate(startDate) : '',
       endDate: endDate ? formatDisplayDate(endDate) : '',
-      createdAt: new Date().toISOString(),
-    })
+    }
+
+    if (existingTrip) {
+      updateTrip({ ...existingTrip, ...fields })
+    } else {
+      saveTrip({
+        id: crypto.randomUUID(),
+        ...fields,
+        createdAt: new Date().toISOString(),
+      })
+    }
 
     void navigate('/')
   }
 
+  if (id && !existingTrip) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[var(--color-paper)]">
+        <p className="text-[var(--color-ink-muted)]">Trip not found.</p>
+      </div>
+    )
+  }
+
   const showPreview = destinations.length >= 2
+  const isBusy = isSearching || destinations.some((d) => d.isSearching)
 
   return (
     <div className="min-h-screen bg-[var(--color-paper)]">
@@ -142,9 +250,11 @@ export default function NewTripPage() {
         <header className="mb-10 flex items-end justify-between border-b border-[var(--color-border)] pb-8">
           <div>
             <h1 className="font-[family-name:var(--font-family-serif)] text-4xl font-bold tracking-tight text-[var(--color-ink)]">
-              New Trip
+              {existingTrip ? 'Edit Trip' : 'New Trip'}
             </h1>
-            <p className="mt-2 text-sm text-[var(--color-ink-muted)]">Plan your next adventure.</p>
+            <p className="mt-2 text-sm text-[var(--color-ink-muted)]">
+              {existingTrip ? 'Update your itinerary.' : 'Plan your next adventure.'}
+            </p>
           </div>
           <Button variant="secondary" onClick={() => void navigate('/')}>
             Back
@@ -198,18 +308,28 @@ export default function NewTripPage() {
             {destinations.length > 0 && (
               <div className="mb-3 space-y-3">
                 {destinations.map((dest, i) => (
-                  <div key={dest.key} className="flex items-start gap-3">
+                  <form
+                    key={dest.key}
+                    onSubmit={(e) => void handleUpdateDestinationName(e, dest.key)}
+                    className="flex items-start gap-3"
+                  >
                     {/* Stop number */}
-                    <span className="mt-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-ink)] text-[10px] font-semibold text-[var(--color-paper)]">
+                    <span className="mt-[30px] flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-ink)] text-[10px] font-semibold text-[var(--color-paper)]">
                       {i + 1}
                     </span>
 
-                    {/* Resolved place name */}
-                    <div className="flex-1 rounded-sm border border-[var(--color-border)] bg-[var(--color-paper-card)] px-3 py-2">
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--color-ink-muted)]">
-                        {i === 0 ? 'Starting Point' : `Stop ${String(i + 1)}`}
-                      </p>
-                      <p className="text-sm text-[var(--color-ink)]">{dest.name}</p>
+                    {/* Name input — editing and re-submitting re-geocodes only if changed */}
+                    <div className="flex-1">
+                      <TextInput
+                        id={`dest-name-${String(dest.key)}`}
+                        label={i === 0 ? 'Starting Point' : `Stop ${String(i + 1)}`}
+                        value={dest.draftName}
+                        onChange={(v) => {
+                          updateDraftName(dest.key, v)
+                        }}
+                        placeholder="City or place name"
+                        error={dest.searchError}
+                      />
                     </div>
 
                     {/* Transport (shown on all stops except the first) */}
@@ -231,6 +351,17 @@ export default function NewTripPage() {
                       <div className="w-36 shrink-0" />
                     )}
 
+                    {/* Update button — enabled only when the name has actually changed */}
+                    <div className="mt-[22px] shrink-0">
+                      <Button
+                        type="submit"
+                        variant="secondary"
+                        disabled={dest.isSearching || dest.draftName.trim() === dest.name}
+                      >
+                        {dest.isSearching ? 'Searching…' : 'Update'}
+                      </Button>
+                    </div>
+
                     {/* Remove button */}
                     <button
                       type="button"
@@ -238,11 +369,11 @@ export default function NewTripPage() {
                         removeDestination(dest.key)
                       }}
                       aria-label="Remove destination"
-                      className="mt-2 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--color-ink-muted)] transition-colors hover:text-red-500"
+                      className="mt-[30px] flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--color-ink-muted)] transition-colors hover:text-red-500"
                     >
                       <RemoveIcon />
                     </button>
-                  </div>
+                  </form>
                 ))}
               </div>
             )}
@@ -330,8 +461,8 @@ export default function NewTripPage() {
 
           {/* Submit */}
           <div className="border-t border-[var(--color-border)] pt-6">
-            <Button variant="primary" onClick={handleSubmit}>
-              Create Trip
+            <Button variant="primary" onClick={handleSubmit} disabled={isBusy}>
+              {existingTrip ? 'Save Changes' : 'Create Trip'}
             </Button>
           </div>
         </div>

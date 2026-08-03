@@ -4,7 +4,12 @@ import { useTripStorage } from '../hooks/useTripStorage'
 
 export default function HomePage() {
   const navigate = useNavigate()
-  const { trips } = useTripStorage()
+  const { trips, deleteTrip } = useTripStorage()
+
+  function handleDeleteTrip(id: string) {
+    if (!window.confirm('Are you sure you want to delete this trip?')) return
+    deleteTrip(id)
+  }
 
   return (
     <div className="min-h-screen bg-[var(--color-paper)]">
@@ -35,7 +40,7 @@ export default function HomePage() {
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {trips.map((trip) => (
-              <TripCard key={trip.id} trip={trip} />
+              <TripCard key={trip.id} trip={trip} onDelete={handleDeleteTrip} />
             ))}
           </div>
         </section>
