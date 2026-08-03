@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { useTripStorage } from '../hooks/useTripStorage'
+import type { TransportType } from '../types/trip'
 
 type LegStatus = 'completed' | 'current' | 'future'
 
@@ -61,6 +62,26 @@ function createStopIcon(index: number) {
   })
 }
 
+const TRANSPORT_ICON_SVG: Record<TransportType, string> = {
+  plane:
+    '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="14.7,1.3 10,14.7 7.3,8.7 1.3,6" /><line x1="14.7" y1="1.3" x2="7.3" y2="8.7" /></svg>',
+  car: '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 10V8.2a1 1 0 0 1 .6-.9L4.5 6.6 5.7 4h4.6l1.2 2.6 1.4.7a1 1 0 0 1 .6.9V10" /><path d="M1.5 10h13" /><circle cx="4.7" cy="10" r="1.2" /><circle cx="11.3" cy="10" r="1.2" /></svg>',
+  train:
+    '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="1.5" width="9" height="8.5" rx="2" /><path d="M3.5 6.3h9" /><circle cx="5.7" cy="12.3" r="1" /><circle cx="10.3" cy="12.3" r="1" /><path d="M5.7 10.2v1.1M10.3 10.2v1.1" /></svg>',
+  boat: '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10h12l-1.6 3.1a1 1 0 0 1-.9.6H4.5a1 1 0 0 1-.9-.6L2 10z" /><path d="M8 10V2" /><path d="M8 2.8l3.6 2.8H8z" /></svg>',
+  bus: '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2.5" width="12" height="8" rx="1.5" /><path d="M2 6.5h12" /><path d="M5 2.5v4M11 2.5v4" /><circle cx="5" cy="12.3" r="1.1" /><circle cx="11" cy="12.3" r="1.1" /></svg>',
+}
+
+function createTransportIcon(transport: TransportType, legStatus: LegStatus) {
+  const fadedClass = legStatus === 'future' ? ' transport-icon-faded' : ''
+  return L.divIcon({
+    className: '',
+    html: `<div class="transport-icon${fadedClass}">${TRANSPORT_ICON_SVG[transport]}</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  })
+}
+
 export default function TripMapPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -114,19 +135,39 @@ export default function TripMapPage() {
             mutating it in place — Leaflet's setStyle() merges options rather than
             replacing them, so properties like dashArray/className can otherwise linger
             from a previous status (e.g. a leg that was ever "current" staying dashed
-            after it's un-marked). */}
-        {trip.destinations.slice(0, -1).map((_, i) => {
+            after it's un-marked). A transport-type badge is placed at each leg's
+            midpoint when a transportToNext is set. */}
+        {trip.destinations.slice(0, -1).flatMap((origin, i) => {
+          const destination = trip.destinations[i + 1]
           const legStatus = getLegStatus(i, furthestVisitedIndex)
-          return (
+
+          const legElements = [
             <Polyline
-              key={`${String(i)}-${legStatus}`}
+              key={`leg-${String(i)}-${legStatus}`}
               positions={[
-                [trip.destinations[i].lat, trip.destinations[i].lng] as [number, number],
-                [trip.destinations[i + 1].lat, trip.destinations[i + 1].lng] as [number, number],
+                [origin.lat, origin.lng] as [number, number],
+                [destination.lat, destination.lng] as [number, number],
               ]}
               pathOptions={LEG_PATH_OPTIONS[legStatus]}
-            />
-          )
+            />,
+          ]
+
+          if (origin.transportToNext) {
+            const midpoint: [number, number] = [
+              (origin.lat + destination.lat) / 2,
+              (origin.lng + destination.lng) / 2,
+            ]
+            legElements.push(
+              <Marker
+                key={`transport-${String(i)}-${legStatus}`}
+                position={midpoint}
+                icon={createTransportIcon(origin.transportToNext, legStatus)}
+                interactive={false}
+              />,
+            )
+          }
+
+          return legElements
         })}
 
         {trip.destinations.map((dest, i) => (

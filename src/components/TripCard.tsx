@@ -15,49 +15,51 @@ export default function TripCard({ trip, onDelete }: TripCardProps) {
       className="group block rounded-sm border border-[var(--color-border)] bg-[var(--color-paper-card)] p-6 transition-shadow duration-200 hover:shadow-md"
     >
       <div className="mb-4 flex items-start justify-between gap-4">
-        <h2 className="font-[family-name:var(--font-family-serif)] text-xl font-semibold leading-tight text-[var(--color-ink)] group-hover:text-[var(--color-accent)] transition-colors duration-200">
+        <h2 className="min-w-0 flex-1 truncate font-[family-name:var(--font-family-serif)] text-xl font-semibold leading-tight text-[var(--color-ink)] transition-colors duration-200 group-hover:text-[var(--color-accent)]">
           {trip.name}
         </h2>
-        <div className="flex shrink-0 items-center gap-2">
-          <span className="rounded-full border border-[var(--color-border)] px-2.5 py-0.5 text-xs font-medium text-[var(--color-ink-muted)]">
-            {trip.destinations.length} stops
-          </span>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              void navigate(`/trips/${trip.id}/edit`)
-            }}
-            aria-label="Edit trip"
-            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--color-ink-muted)] transition-colors hover:text-[var(--color-accent)]"
-          >
-            <EditIcon />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              onDelete(trip.id)
-            }}
-            aria-label="Delete trip"
-            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--color-ink-muted)] transition-colors hover:text-red-500"
-          >
-            <TrashIcon />
-          </button>
-        </div>
+        <span className="shrink-0 rounded-full border border-[var(--color-border)] px-2.5 py-0.5 text-xs font-medium text-[var(--color-ink-muted)]">
+          {trip.destinations.length} stops
+        </span>
       </div>
 
       <p className="mb-5 text-sm leading-relaxed text-[var(--color-ink-muted)]">
         {trip.destinations.map((d) => d.name).join(' → ')}
       </p>
 
-      <div className="flex items-center gap-1.5 text-xs text-[var(--color-ink-muted)]">
+      <div className="mb-5 flex items-center gap-1.5 text-xs text-[var(--color-ink-muted)]">
         <CalendarIcon />
         <span>
           {trip.startDate} — {trip.endDate}
         </span>
+      </div>
+
+      {/* Actions live in their own row so a long trip name can never push them out of view */}
+      <div className="flex items-center gap-2 border-t border-[var(--color-border)] pt-4">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            void navigate(`/trips/${trip.id}/edit`)
+          }}
+          className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-sm border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink-muted)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)]"
+        >
+          <EditIcon />
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onDelete(trip.id)
+          }}
+          className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-sm border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink-muted)] transition-colors hover:border-red-500 hover:text-red-500"
+        >
+          <TrashIcon />
+          Delete
+        </button>
       </div>
     </Link>
   )
