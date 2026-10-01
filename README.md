@@ -19,7 +19,7 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173) 
 or
-Url: https://chartedtrips.vercel.app 
+https://chartedtrips.vercel.app 
 in your browser.
 
 ## Project Structure
