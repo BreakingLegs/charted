@@ -4,14 +4,17 @@ import type { Trip } from '../types/trip'
 interface TripCardProps {
   trip: Trip
   onDelete: (id: string) => void
+  /** Marks this card as the guided tour's "click a trip" target. */
+  tourTarget?: boolean
 }
 
-export default function TripCard({ trip, onDelete }: TripCardProps) {
+export default function TripCard({ trip, onDelete, tourTarget = false }: TripCardProps) {
   const navigate = useNavigate()
 
   return (
     <Link
       to={`/trips/${trip.id}`}
+      data-tour={tourTarget ? 'trip-card' : undefined}
       className="group block rounded-sm border border-[var(--color-border)] bg-[var(--color-paper-card)] p-6 transition-shadow duration-200 hover:shadow-md"
     >
       <div className="mb-4 flex items-start justify-between gap-4">

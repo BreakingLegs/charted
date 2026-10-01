@@ -53,10 +53,10 @@ function FitBounds({ positions }: { positions: [number, number][] }) {
   return null
 }
 
-function createStopIcon(index: number) {
+function createStopIcon(index: number, isTourTarget: boolean) {
   return L.divIcon({
     className: '',
-    html: `<div class="marker-pin">${String(index + 1)}</div>`,
+    html: `<div class="marker-pin"${isTourTarget ? ' data-tour="destination-marker"' : ''}>${String(index + 1)}</div>`,
     iconSize: [28, 28],
     iconAnchor: [14, 14],
   })
@@ -118,81 +118,89 @@ export default function TripMapPage() {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden">
-      {/* Map */}
-      <MapContainer
-        center={positions[0]}
-        zoom={6}
-        className="vintage-map h-full w-full"
-        zoomControl
-      >
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        />
+      {/* Map — wrapped in a full-bleed div so the guided tour has a stable
+          element to attach its "this is your route" step to. */}
+      <div data-tour="route-map" className="absolute inset-0">
+        <MapContainer
+          center={positions[0]}
+          zoom={6}
+          className="vintage-map h-full w-full"
+          zoomControl
+        >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          />
 
-        {/* One Polyline per leg so each can have independent styling. The leg status is
-            folded into the key so a status change remounts the Leaflet layer instead of
-            mutating it in place — Leaflet's setStyle() merges options rather than
-            replacing them, so properties like dashArray/className can otherwise linger
-            from a previous status (e.g. a leg that was ever "current" staying dashed
-            after it's un-marked). A transport-type badge is placed at each leg's
-            midpoint when a transportToNext is set. */}
-        {trip.destinations.slice(0, -1).flatMap((origin, i) => {
-          const destination = trip.destinations[i + 1]
-          const legStatus = getLegStatus(i, furthestVisitedIndex)
+          {/* One Polyline per leg so each can have independent styling. The leg status is
+              folded into the key so a status change remounts the Leaflet layer instead of
+              mutating it in place — Leaflet's setStyle() merges options rather than
+              replacing them, so properties like dashArray/className can otherwise linger
+              from a previous status (e.g. a leg that was ever "current" staying dashed
+              after it's un-marked). A transport-type badge is placed at each leg's
+              midpoint when a transportToNext is set. */}
+          {trip.destinations.slice(0, -1).flatMap((origin, i) => {
+            const destination = trip.destinations[i + 1]
+            const legStatus = getLegStatus(i, furthestVisitedIndex)
 
-          const legElements = [
-            <Polyline
-              key={`leg-${String(i)}-${legStatus}`}
-              positions={[
-                [origin.lat, origin.lng] as [number, number],
-                [destination.lat, destination.lng] as [number, number],
-              ]}
-              pathOptions={LEG_PATH_OPTIONS[legStatus]}
-            />,
-          ]
-
-          if (origin.transportToNext) {
-            const midpoint: [number, number] = [
-              (origin.lat + destination.lat) / 2,
-              (origin.lng + destination.lng) / 2,
-            ]
-            legElements.push(
-              <Marker
-                key={`transport-${String(i)}-${legStatus}`}
-                position={midpoint}
-                icon={createTransportIcon(origin.transportToNext, legStatus)}
-                interactive={false}
+            const legElements = [
+              <Polyline
+                key={`leg-${String(i)}-${legStatus}`}
+                positions={[
+                  [origin.lat, origin.lng] as [number, number],
+                  [destination.lat, destination.lng] as [number, number],
+                ]}
+                pathOptions={LEG_PATH_OPTIONS[legStatus]}
               />,
-            )
-          }
+            ]
 
-          return legElements
-        })}
+            if (origin.transportToNext) {
+              const midpoint: [number, number] = [
+                (origin.lat + destination.lat) / 2,
+                (origin.lng + destination.lng) / 2,
+              ]
+              legElements.push(
+                <Marker
+                  key={`transport-${String(i)}-${legStatus}`}
+                  position={midpoint}
+                  icon={createTransportIcon(origin.transportToNext, legStatus)}
+                  interactive={false}
+                />,
+              )
+            }
 
-        {trip.destinations.map((dest, i) => (
-          <Marker key={dest.name} position={[dest.lat, dest.lng]} icon={createStopIcon(i)}>
-            <Popup minWidth={170}>
-              <div className="px-0.5 py-0.5">
-                <p className="mb-2 text-sm font-semibold text-[var(--color-ink)]">{dest.name}</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    toggleVisited(i)
-                  }}
-                  className="w-full cursor-pointer rounded-sm bg-[var(--color-ink)] px-3 py-1.5 text-xs font-medium text-[var(--color-paper)] transition-opacity duration-150 hover:opacity-80"
-                >
-                  {dest.visited ? 'Mark as not visited' : 'Mark as visited'}
-                </button>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-        <FitBounds positions={positions} />
-      </MapContainer>
+            return legElements
+          })}
+
+          {trip.destinations.map((dest, i) => (
+            <Marker
+              key={dest.name}
+              position={[dest.lat, dest.lng]}
+              icon={createStopIcon(i, i === 0)}
+            >
+              <Popup minWidth={170}>
+                <div className="px-0.5 py-0.5">
+                  <p className="mb-2 text-sm font-semibold text-[var(--color-ink)]">{dest.name}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleVisited(i)
+                    }}
+                    className="w-full cursor-pointer rounded-sm bg-[var(--color-ink)] px-3 py-1.5 text-xs font-medium text-[var(--color-paper)] transition-opacity duration-150 hover:opacity-80"
+                  >
+                    {dest.visited ? 'Mark as not visited' : 'Mark as visited'}
+                  </button>
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+          <FitBounds positions={positions} />
+        </MapContainer>
+      </div>
 
       {/* Back button — offset right of Leaflet's zoom controls (~36px wide at left:10px) */}
       <button
+        data-tour="map-back-button"
         onClick={() => void navigate('/')}
         className="absolute left-14 top-[10px] z-[1000] flex cursor-pointer items-center gap-1.5 rounded-sm border border-[var(--color-border)] bg-[var(--color-paper-card)] px-3 py-2 text-sm font-medium text-[var(--color-ink)] shadow-sm transition-opacity duration-150 hover:opacity-75"
       >
@@ -201,7 +209,10 @@ export default function TripMapPage() {
       </button>
 
       {/* Trip info overlay */}
-      <div className="absolute bottom-8 left-5 z-[1000] w-56 rounded-sm border border-[var(--color-border)] bg-[var(--color-paper-card)] p-5 shadow-lg">
+      <div
+        data-tour="trip-sidebar"
+        className="absolute bottom-8 left-5 z-[1000] w-56 rounded-sm border border-[var(--color-border)] bg-[var(--color-paper-card)] p-5 shadow-lg"
+      >
         <p className="mb-1 text-[10px] font-medium uppercase tracking-widest text-[var(--color-ink-muted)]">
           {trip.startDate} — {trip.endDate}
         </p>

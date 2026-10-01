@@ -4,7 +4,10 @@ import { defaultTrips } from '../data/mockTrips'
 
 const STORAGE_KEY = 'charted_trips'
 
-function loadTrips(): Trip[] {
+// Exported so one-off readers (e.g. the guided tour, which needs the first
+// trip's id without subscribing to a hook instance of its own) can read the
+// current trips without risking a stale copy from an unrelated hook instance.
+export function loadTrips(): Trip[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) {

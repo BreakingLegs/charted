@@ -1,0 +1,89 @@
+/* Restyles Shepherd.js's generic step popovers to match Charted's vintage/paper
+   aesthetic (see src/index.css). Scoped to `.charted-tour`, the class every
+   step in src/tour/steps.ts carries, so this never bleeds into other uses of
+   shepherd.js's own base stylesheet. */
+
+.charted-tour.shepherd-element {
+  background: var(--color-paper-card);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(26, 18, 8, 0.3);
+  max-width: 340px;
+  font-family: var(--font-family-sans);
+}
+
+.charted-tour .shepherd-header,
+.charted-tour.shepherd-has-title .shepherd-content .shepherd-header {
+  background: transparent;
+  padding: 1rem 1rem 0;
+}
+
+.charted-tour .shepherd-title {
+  font-family: var(--font-family-serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.charted-tour .shepherd-text {
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  padding: 0.5rem 1rem 1rem;
+}
+
+.charted-tour .shepherd-footer {
+  padding: 0 1rem 1rem;
+  gap: 0.5rem;
+}
+
+.charted-tour .shepherd-button {
+  margin-right: 0;
+  border-radius: 2px;
+  padding: 0.5rem 1.25rem;
+  font-family: var(--font-family-sans);
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  transition: opacity 150ms ease;
+}
+
+.charted-tour .shepherd-button:not(:disabled):hover {
+  background: var(--color-ink);
+  opacity: 0.8;
+}
+
+.charted-tour .shepherd-button.shepherd-button-secondary {
+  background: var(--color-paper-card);
+  color: var(--color-ink);
+  border: 1px solid var(--color-border);
+}
+
+.charted-tour .shepherd-button.shepherd-button-secondary:not(:disabled):hover {
+  background: var(--color-paper-card);
+  border-color: var(--color-ink-muted);
+  opacity: 1;
+}
+
+.charted-tour .shepherd-cancel-icon {
+  color: var(--color-ink-muted);
+}
+
+.charted-tour .shepherd-cancel-icon:hover {
+  color: var(--color-ink);
+}
+
+.charted-tour .shepherd-arrow:before {
+  background: var(--color-paper-card);
+}
+
+.charted-tour.shepherd-has-title[data-popper-placement^='bottom'] > .shepherd-arrow:before {
+  background: var(--color-paper-card);
+}
+
+/* Tint the spotlight overlay with the app's ink color instead of pure black,
+   so the dimmed backdrop reads as part of the same sepia palette. */
+.shepherd-modal-overlay-container path {
+  fill: var(--color-ink);
+}
