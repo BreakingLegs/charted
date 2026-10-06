@@ -5,9 +5,10 @@ import TextInput from '../components/ui/TextInput'
 import DatePicker from '../components/ui/DatePicker'
 import Select from '../components/ui/Select'
 import Button from '../components/ui/Button'
+import AirportPicker from '../components/AirportPicker'
 import { useTripStorage } from '../hooks/useTripStorage'
 import { geocodePlace, GeocodeError } from '../utils/geocoding'
-import type { Destination, TransportType, Trip } from '../types/trip'
+import type { Airport, Destination, TransportType, Trip } from '../types/trip'
 
 interface DestEntry {
   key: number
@@ -19,11 +20,14 @@ interface DestEntry {
   isSearching: boolean
   searchError?: string
   transport: TransportType | ''
+  departureAirport: Airport | null
+  arrivalAirport: Airport | null
 }
 
 interface FormErrors {
   name?: string
   destinations?: string
+  airports?: string
 }
 
 const TRANSPORT_OPTIONS: Array<{ value: TransportType; label: string }> = [
@@ -32,6 +36,7 @@ const TRANSPORT_OPTIONS: Array<{ value: TransportType; label: string }> = [
   { value: 'train', label: 'Train' },
   { value: 'boat', label: 'Boat' },
   { value: 'bus', label: 'Bus' },
+  { value: 'walk', label: 'Walk' },
 ]
 
 function formatDisplayDate(isoDate: string): string {
@@ -53,7 +58,8 @@ function parseDisplayDate(display: string): string {
   return `${yyyy}-${mm}-${dd}`
 }
 
-// A destination's "Via" transport is stored as transportToNext on the *previous*
+// A destination's "Via" transport (and, for flights, its airports) is stored
+// as transportToNext/departureAirport/arrivalAirport on the *previous*
 // destination, so it shifts by one when converting back into editable entries.
 function tripToDestEntries(trip: Trip): DestEntry[] {
   return trip.destinations.map((d, i) => ({
@@ -65,6 +71,8 @@ function tripToDestEntries(trip: Trip): DestEntry[] {
     visited: d.visited,
     isSearching: false,
     transport: i > 0 ? (trip.destinations[i - 1].transportToNext ?? '') : '',
+    departureAirport: i > 0 ? (trip.destinations[i - 1].departureAirport ?? null) : null,
+    arrivalAirport: i > 0 ? (trip.destinations[i - 1].arrivalAirport ?? null) : null,
   }))
 }
 
@@ -88,6 +96,8 @@ export default function NewTripPage() {
 
   const [query, setQuery] = useState('')
   const [pendingTransport, setPendingTransport] = useState<TransportType | ''>('')
+  const [pendingDepartureAirport, setPendingDepartureAirport] = useState<Airport | null>(null)
+  const [pendingArrivalAirport, setPendingArrivalAirport] = useState<Airport | null>(null)
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | undefined>()
 
@@ -96,7 +106,32 @@ export default function NewTripPage() {
   }
 
   function updateTransport(key: number, transport: TransportType | '') {
-    setDestinations((prev) => prev.map((d) => (d.key === key ? { ...d, transport } : d)))
+    setDestinations((prev) =>
+      prev.map((d) =>
+        d.key === key
+          ? {
+              ...d,
+              transport,
+              // Clear out any previously-picked airports once the leg is no
+              // longer a flight, so stale airports can't resurface if the
+              // user switches back and forth.
+              ...(transport === 'plane' ? {} : { departureAirport: null, arrivalAirport: null }),
+            }
+          : d,
+      ),
+    )
+  }
+
+  function updateDepartureAirport(key: number, airport: Airport | null) {
+    setDestinations((prev) =>
+      prev.map((d) => (d.key === key ? { ...d, departureAirport: airport } : d)),
+    )
+  }
+
+  function updateArrivalAirport(key: number, airport: Airport | null) {
+    setDestinations((prev) =>
+      prev.map((d) => (d.key === key ? { ...d, arrivalAirport: airport } : d)),
+    )
   }
 
   function updateDraftName(key: number, draftName: string) {
@@ -129,11 +164,15 @@ export default function NewTripPage() {
           visited: false,
           isSearching: false,
           transport: pendingTransport,
+          departureAirport: pendingDepartureAirport,
+          arrivalAirport: pendingArrivalAirport,
         },
       ])
       setKeyCounter((k) => k + 1)
       setQuery('')
       setPendingTransport('')
+      setPendingDepartureAirport(null)
+      setPendingArrivalAirport(null)
     } catch (err) {
       setSearchError(err instanceof GeocodeError ? err.message : 'Something went wrong. Try again.')
     } finally {
@@ -188,14 +227,29 @@ export default function NewTripPage() {
     }
   }
 
+  function handlePendingTransportChange(transport: TransportType | '') {
+    setPendingTransport(transport)
+    if (transport !== 'plane') {
+      setPendingDepartureAirport(null)
+      setPendingArrivalAirport(null)
+    }
+  }
+
   function validate(): boolean {
     const next: FormErrors = {}
 
     if (!tripName.trim()) next.name = 'Trip name is required'
     if (destinations.length < 2) next.destinations = 'Add at least 2 destinations'
+    if (
+      destinations.some(
+        (d) => d.transport === 'plane' && (!d.departureAirport || !d.arrivalAirport),
+      )
+    ) {
+      next.airports = 'Select a departure and arrival airport for each flight leg.'
+    }
 
     setErrors(next)
-    return !next.name && !next.destinations
+    return !next.name && !next.destinations && !next.airports
   }
 
   function handleSubmit() {
@@ -203,12 +257,17 @@ export default function NewTripPage() {
 
     const tripDestinations: Destination[] = destinations.map((d, i): Destination => {
       const nextTransport = destinations[i + 1]?.transport
+      const nextDeparture = destinations[i + 1]?.departureAirport
+      const nextArrival = destinations[i + 1]?.arrivalAirport
       return {
         name: d.name,
         lat: d.lat,
         lng: d.lng,
         visited: d.visited,
         ...(nextTransport ? { transportToNext: nextTransport } : {}),
+        ...(nextTransport === 'plane' && nextDeparture && nextArrival
+          ? { departureAirport: nextDeparture, arrivalAirport: nextArrival }
+          : {}),
       }
     })
 
@@ -304,76 +363,98 @@ export default function NewTripPage() {
             {errors.destinations && (
               <p className="mb-3 text-xs text-red-600">{errors.destinations}</p>
             )}
+            {errors.airports && <p className="mb-3 text-xs text-red-600">{errors.airports}</p>}
 
             {destinations.length > 0 && (
               <div className="mb-3 space-y-3">
                 {destinations.map((dest, i) => (
-                  <form
-                    key={dest.key}
-                    onSubmit={(e) => void handleUpdateDestinationName(e, dest.key)}
-                    className="flex items-start gap-3"
-                  >
-                    {/* Stop number */}
-                    <span className="mt-[30px] flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-ink)] text-[10px] font-semibold text-[var(--color-paper)]">
-                      {i + 1}
-                    </span>
+                  <div key={dest.key}>
+                    <form
+                      onSubmit={(e) => void handleUpdateDestinationName(e, dest.key)}
+                      className="flex items-start gap-3"
+                    >
+                      {/* Stop number */}
+                      <span className="mt-[30px] flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-ink)] text-[10px] font-semibold text-[var(--color-paper)]">
+                        {i + 1}
+                      </span>
 
-                    {/* Name input — editing and re-submitting re-geocodes only if changed */}
-                    <div className="flex-1">
-                      <TextInput
-                        id={`dest-name-${String(dest.key)}`}
-                        label={i === 0 ? 'Starting Point' : `Stop ${String(i + 1)}`}
-                        value={dest.draftName}
-                        onChange={(v) => {
-                          updateDraftName(dest.key, v)
-                        }}
-                        placeholder="City or place name"
-                        error={dest.searchError}
-                      />
-                    </div>
-
-                    {/* Transport (shown on all stops except the first) */}
-                    {i > 0 ? (
-                      <div className="w-36 shrink-0">
-                        <Select<TransportType>
-                          id={`dest-transport-${String(dest.key)}`}
-                          label="Via"
-                          value={dest.transport}
+                      {/* Name input — editing and re-submitting re-geocodes only if changed */}
+                      <div className="flex-1">
+                        <TextInput
+                          id={`dest-name-${String(dest.key)}`}
+                          label={i === 0 ? 'Starting Point' : `Stop ${String(i + 1)}`}
+                          value={dest.draftName}
                           onChange={(v) => {
-                            updateTransport(dest.key, v)
+                            updateDraftName(dest.key, v)
                           }}
-                          options={TRANSPORT_OPTIONS}
-                          placeholder="Transport"
+                          placeholder="City or place name"
+                          error={dest.searchError}
                         />
                       </div>
-                    ) : (
-                      // Spacer to keep the first row aligned
-                      <div className="w-36 shrink-0" />
-                    )}
 
-                    {/* Update button — enabled only when the name has actually changed */}
-                    <div className="mt-[22px] shrink-0">
-                      <Button
-                        type="submit"
-                        variant="secondary"
-                        disabled={dest.isSearching || dest.draftName.trim() === dest.name}
+                      {/* Transport (shown on all stops except the first) */}
+                      {i > 0 ? (
+                        <div className="w-36 shrink-0">
+                          <Select<TransportType>
+                            id={`dest-transport-${String(dest.key)}`}
+                            label="Via"
+                            value={dest.transport}
+                            onChange={(v) => {
+                              updateTransport(dest.key, v)
+                            }}
+                            options={TRANSPORT_OPTIONS}
+                            placeholder="Transport"
+                          />
+                        </div>
+                      ) : (
+                        // Spacer to keep the first row aligned
+                        <div className="w-36 shrink-0" />
+                      )}
+
+                      {/* Update button — enabled only when the name has actually changed */}
+                      <div className="mt-[22px] shrink-0">
+                        <Button
+                          type="submit"
+                          variant="secondary"
+                          disabled={dest.isSearching || dest.draftName.trim() === dest.name}
+                        >
+                          {dest.isSearching ? 'Searching…' : 'Update'}
+                        </Button>
+                      </div>
+
+                      {/* Remove button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          removeDestination(dest.key)
+                        }}
+                        aria-label="Remove destination"
+                        className="mt-[30px] flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--color-ink-muted)] transition-colors hover:text-red-500"
                       >
-                        {dest.isSearching ? 'Searching…' : 'Update'}
-                      </Button>
-                    </div>
-
-                    {/* Remove button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        removeDestination(dest.key)
-                      }}
-                      aria-label="Remove destination"
-                      className="mt-[30px] flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-sm text-[var(--color-ink-muted)] transition-colors hover:text-red-500"
-                    >
-                      <RemoveIcon />
-                    </button>
-                  </form>
+                        <RemoveIcon />
+                      </button>
+                    </form>
+                    {dest.transport === 'plane' && (
+                      <div className="ml-9 mt-2 grid grid-cols-2 gap-3">
+                        <AirportPicker
+                          id={`dest-departure-${String(dest.key)}`}
+                          label="Departure Airport"
+                          value={dest.departureAirport}
+                          onChange={(airport) => {
+                            updateDepartureAirport(dest.key, airport)
+                          }}
+                        />
+                        <AirportPicker
+                          id={`dest-arrival-${String(dest.key)}`}
+                          label="Arrival Airport"
+                          value={dest.arrivalAirport}
+                          onChange={(airport) => {
+                            updateArrivalAirport(dest.key, airport)
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
@@ -405,7 +486,7 @@ export default function NewTripPage() {
                     id="dest-transport-pending"
                     label="Via"
                     value={pendingTransport}
-                    onChange={setPendingTransport}
+                    onChange={handlePendingTransportChange}
                     options={TRANSPORT_OPTIONS}
                     placeholder="Transport"
                   />
@@ -420,6 +501,22 @@ export default function NewTripPage() {
                 </Button>
               </div>
             </form>
+            {destinations.length > 0 && pendingTransport === 'plane' && (
+              <div className="ml-9 mt-2 grid grid-cols-2 gap-3">
+                <AirportPicker
+                  id="dest-departure-pending"
+                  label="Departure Airport"
+                  value={pendingDepartureAirport}
+                  onChange={setPendingDepartureAirport}
+                />
+                <AirportPicker
+                  id="dest-arrival-pending"
+                  label="Arrival Airport"
+                  value={pendingArrivalAirport}
+                  onChange={setPendingArrivalAirport}
+                />
+              </div>
+            )}
           </section>
 
           {/* Route preview */}
